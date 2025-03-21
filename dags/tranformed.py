@@ -15,14 +15,14 @@ import pandas.errors
 import io
 from typing import Dict, List, Optional
 
-# Airflow Variables
+
 AWS_CONN_ID = "etl_aws_conn_id"
 S3_BUCKET = "25dataengineering-streaming-data"
 S3_METADATA_FOLDER = "Raw_data/"
 S3_PROCESSED_FOLDER = "transformed/"
-S3_STREAMS_FOLDER = "streams/"  # New folder for streams data
+S3_STREAMS_FOLDER = "streams/"
 
-# File names (can be moved to Airflow Variables)
+
 STREAM_DATA_FILE = "stream_data.csv"
 USERS_DATA_FILE = "users_data.csv"
 
