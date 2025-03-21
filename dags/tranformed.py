@@ -560,6 +560,6 @@ with dag:
     final_merge_data = merge_with_track_id(new_merge_data)
     transformed_data = perform_transformations(final_merge_data)
     store_data = store_transformed_data(transformed_data)
-    load_data = load_data_into_redshift()
+    load_data = load_data_into_redshift(   )
 
     start >> metadata >> validated_data >> new_merge_data >> final_merge_data >> transformed_data >> store_data >>load_data>> end
