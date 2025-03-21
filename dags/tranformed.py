@@ -2,6 +2,9 @@ from airflow import DAG
 from airflow.decorators import task
 from airflow.operators.dummy import DummyOperator
 from airflow.providers.amazon.aws.hooks.s3 import S3Hook
+from airflow.providers.amazon.aws.hooks.redshift_sql import RedshiftSQLHook
+from airflow.providers.amazon.aws.hooks.redshift_data import RedshiftDataHook
+from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.models import Variable
 from airflow.utils.dates import days_ago
 from datetime import datetime, timedelta
@@ -505,6 +508,47 @@ def store_transformed_data(transformed_data: Dict, **context):
         except Exception as e:
             logging.error(f"Failed to save {name} to {s3_key}: {str(e)}")
 
+@task(task_id="load_data")
+def load_data_into_redshift(**kwargs):
+    # Get Redshift connection details from Airflow connection
+    redshift_hook = PostgresHook(postgres_conn_id='redshift')
+    conn = redshift_hook.get_conn()
+    cursor = conn.cursor()
+    bucket_name = 'transformed'  # Ensure no trailing space
+    iam_role = 'arn:aws:iam::288761743924:role/mwaa-access'
+    try:
+        # Load genre_kpis data into Redshift
+        cursor.execute(f"""
+            COPY genre_kpis
+            FROM 's3://25dataengineering-streaming-data/transformed/2025/03/21/genre_kpis.csv'
+            IAM_ROLE '{iam_role}'
+            FORMAT CSV
+            IGNOREHEADER 1;
+        """)
+        print("Genre KPIs data loaded into Redshift.")
+        # Load hourly_kpis data into Redshift
+        cursor.execute(f"""
+            COPY hourly_kpis
+            FROM 's3://25dataengineering-streaming-data/transformed/2025/03/21/hourly_kpis.csv'
+            IAM_ROLE '{iam_role}'
+            FORMAT CSV
+            IGNOREHEADER 1;
+        """)
+        print("Hourly KPIs data loaded into Redshift.")
+        cursor.execute(f"""
+            COPY source_kpis
+            FROM 's3://25dataengineering-streaming-data/transformed/2025/03/21/source_kpis.csv'
+            IAM_ROLE '{iam_role}'
+            FORMAT CSV
+            IGNOREHEADER 1;
+        """)
+        print("Source KPIs data loaded into Redshift.")
+        conn.commit()
+    except Exception as e:
+        print(f"Error loading data into Redshift: {e}")
+    finally:
+        cursor.close()
+        conn.close()
 
 with dag:
     start = DummyOperator(task_id="start")
@@ -516,5 +560,6 @@ with dag:
     final_merge_data = merge_with_track_id(new_merge_data)
     transformed_data = perform_transformations(final_merge_data)
     store_data = store_transformed_data(transformed_data)
+    load_data = load_data_into_redshift()
 
-    start >> metadata >> validated_data >> new_merge_data >> final_merge_data >> transformed_data >> store_data >> end
+    start >> metadata >> validated_data >> new_merge_data >> final_merge_data >> transformed_data >> store_data >>load_data>> end
